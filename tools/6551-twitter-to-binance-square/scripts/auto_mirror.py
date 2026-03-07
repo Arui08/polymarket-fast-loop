@@ -247,7 +247,7 @@ def transform_tweet(tweet: dict, config: dict) -> str:
     # Build attribution lines based on config
     source_attribution = ""
     if config.get("show_source", True):
-        source_attribution = f"Source: @{username} on X"
+        source_attribution = f"来源：X @{username}"
 
     tool_attribution = ""
     if config.get("show_tool_attribution", True):
