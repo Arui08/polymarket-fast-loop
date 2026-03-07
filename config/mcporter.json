@@ -5,9 +5,36 @@
     },
     "bnbchain-mcp": {
       "command": "npx",
-      "args": ["-y", "@bnb-chain/mcp@latest"],
+      "args": [
+        "-y",
+        "@bnb-chain/mcp@latest"
+      ],
       "env": {
         "PRIVATE_KEY": ""
+      }
+    },
+    "opennews": {
+      "command": "/root/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/root/.openclaw/workspace/tmp/opennews-mcp",
+        "run",
+        "opennews-mcp"
+      ],
+      "env": {
+        "OPENNEWS_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiOGR5aEhobm1DdzdEVHVYSzltcVlQWFpNd2ZlSkJDaWZ6V3lwSm1Nc0N4d3oiLCJub25jZSI6IjY2YjAzNzZkLTJiNTUtNDk2Zi1hMDRjLTExNDQ5OTAxYjhjYSIsImlhdCI6MTc3Mjg4MTY0NywianRpIjoiMmM5OWM5MDItNTMxNy00MjFkLThkMjUtOGRhYzYwZDNiMGRjIn0.xo_o0mb9V7Pne3ozdMlw9lYl5IdnCkLQG4wNkUMSdjE"
+      }
+    },
+    "opentwitter": {
+      "command": "/root/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/root/.openclaw/workspace/tmp/opentwitter-mcp",
+        "run",
+        "opentwitter-mcp"
+      ],
+      "env": {
+        "TWITTER_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiOGR5aEhobm1DdzdEVHVYSzltcVlQWFpNd2ZlSkJDaWZ6V3lwSm1Nc0N4d3oiLCJub25jZSI6IjY2YjAzNzZkLTJiNTUtNDk2Zi1hMDRjLTExNDQ5OTAxYjhjYSIsImlhdCI6MTc3Mjg4MTY0NywianRpIjoiMmM5OWM5MDItNTMxNy00MjFkLThkMjUtOGRhYzYwZDNiMGRjIn0.xo_o0mb9V7Pne3ozdMlw9lYl5IdnCkLQG4wNkUMSdjE"
       }
     }
   },
