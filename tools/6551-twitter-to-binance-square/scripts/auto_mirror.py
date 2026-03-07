@@ -128,14 +128,14 @@ def fetch_user_tweets(token: str, username: str, max_results: int = 10,
 
 def search_tweets(token: str, keywords: str = "", hashtag: str = "",
                   min_likes: int = 0, min_retweets: int = 0,
-                  max_results: int = 10, lang: str = "") -> list:
+                  max_results: int = 10, lang: str = "", product: str = "Top") -> list:
     """Search tweets by keywords or hashtag."""
     url = f"{TWITTER_API_BASE}/open/twitter_search"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    payload = {"maxResults": max_results, "product": "Top"}
+    payload = {"maxResults": max_results, "product": product}
     if keywords:
         payload["keywords"] = keywords
     if hashtag:
@@ -149,6 +149,48 @@ def search_tweets(token: str, keywords: str = "", hashtag: str = "",
 
     resp = _post_json(url, headers, payload)
     return _extract_tweets(resp)
+
+
+def fetch_account_tweets_with_fallback(token: str, username: str, config: dict) -> list:
+    """Fetch account tweets; fallback to from:username search if direct user API fails or returns empty."""
+    max_results = config.get("max_posts_per_run", 5) * 2
+    include_replies = config.get("include_replies", False)
+    include_retweets = config.get("include_retweets", False)
+
+    try:
+        batch = fetch_user_tweets(
+            token, username,
+            max_results=max_results,
+            include_replies=include_replies,
+            include_retweets=include_retweets,
+        )
+        if batch:
+            return batch
+        log.warning("Direct account timeline returned no data for @%s, falling back to search", username)
+    except Exception as exc:
+        log.warning("Direct account timeline failed for @%s: %s — falling back to search", username, exc)
+
+    batch = search_tweets(
+        token,
+        keywords=f"from:{username}",
+        min_likes=config.get("min_likes", 0),
+        min_retweets=config.get("min_retweets", 0),
+        max_results=max_results,
+        product="Latest",
+    )
+
+    # Fallback search may include replies/retweets more often; filter again explicitly.
+    filtered = []
+    for tweet in batch:
+        if tweet.get("userScreenName", tweet.get("screenName", "")).lower() != username.lower():
+            continue
+        if not include_replies and tweet.get("isReply"):
+            continue
+        text = (tweet.get("text") or "").strip()
+        if not include_retweets and text.startswith("RT @"):
+            continue
+        filtered.append(tweet)
+    return filtered
 
 
 def _extract_tweets(resp: dict) -> list:
@@ -323,12 +365,7 @@ def run_cycle(config: dict, state: dict, twitter_token: str, square_key: str) ->
         if mode == "account":
             for username in config["accounts"]:
                 log.info("Fetching tweets from @%s ...", username)
-                batch = fetch_user_tweets(
-                    twitter_token, username,
-                    max_results=config.get("max_posts_per_run", 5) * 2,
-                    include_replies=config.get("include_replies", False),
-                    include_retweets=config.get("include_retweets", False),
-                )
+                batch = fetch_account_tweets_with_fallback(twitter_token, username, config)
                 tweets.extend(batch)
         elif mode == "search":
             log.info("Searching tweets for: %s", config.get("keywords", ""))
