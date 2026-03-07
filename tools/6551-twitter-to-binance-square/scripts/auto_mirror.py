@@ -427,8 +427,6 @@ def run_cycle(config: dict, state: dict, twitter_token: str, square_key: str) ->
 
         if config.get("dry_run"):
             log.info("[DRY RUN] Would post tweet %s from @%s:\n%s\n", tweet_id, username, content)
-            posted_ids.add(tweet_id)
-            state["posted_tweet_ids"] = list(posted_ids)
             posts_made += 1
             continue
 
@@ -538,7 +536,7 @@ def main():
 
     # --- Validate ---
     twitter_token = os.environ.get("TWITTER_TOKEN", "")
-    square_key = os.environ.get("SQUARE_API_KEY", "")
+    square_key = os.environ.get("SQUARE_API_KEY", "") or os.environ.get("SQUARE_OPENAPI_KEY", "")
 
     if not twitter_token:
         log.error("TWITTER_TOKEN environment variable not set. Get yours at https://6551.io/mcp")
