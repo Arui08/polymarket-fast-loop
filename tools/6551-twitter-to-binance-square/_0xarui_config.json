@@ -1,0 +1,20 @@
+{
+  "mode": "account",
+  "accounts": ["_0xarui"],
+  "keywords": "",
+  "hashtag": "",
+  "poll_interval_seconds": 43200,
+  "min_likes": 0,
+  "min_retweets": 0,
+  "max_posts_per_run": 3,
+  "include_replies": false,
+  "include_retweets": false,
+  "translate": false,
+  "translate_to": "zh",
+  "content_template": "{content}\n\n{source_attribution}\n{tool_attribution}\n{hashtags}",
+  "show_source": true,
+  "show_tool_attribution": true,
+  "add_hashtags": [],
+  "state_file": "/root/.openclaw/workspace/tools/6551-twitter-to-binance-square/_0xarui_state.json",
+  "dry_run": false
+}
