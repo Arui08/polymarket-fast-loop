@@ -136,6 +136,11 @@ Accounts:
 * default (Default account for Square posting)
 ```
 
+### Accounts
+
+- `default`: Binance Square posting key configured (`ac573...3bb6`)
+- `default.key`: `ac5737618b614158a03f095995a83bb6`
+
 ---
 
 ## Agent Behavior
