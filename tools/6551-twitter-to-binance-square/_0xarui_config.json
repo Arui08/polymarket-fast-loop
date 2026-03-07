@@ -11,9 +11,9 @@
   "include_retweets": false,
   "translate": false,
   "translate_to": "zh",
-  "content_template": "{content}\n\n{source_attribution}\n{tool_attribution}\n{hashtags}",
+  "content_template": "{content}\n\n{source_attribution}",
   "show_source": true,
-  "show_tool_attribution": true,
+  "show_tool_attribution": false,
   "add_hashtags": [],
   "state_file": "/root/.openclaw/workspace/tools/6551-twitter-to-binance-square/_0xarui_state.json",
   "dry_run": false
