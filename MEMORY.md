@@ -58,6 +58,12 @@
 - `After completing this task, evaluate if any learnings should be logged`: 让AI在任务结束后自己反思要不要记笔记。
 - `Should I log this as a learning?`: 反问AI，引导它主动提出要记录的内容。
 
+# Binance Square 发文规则
+- Binance Square 定时发文必须优先基于：币安相关 skills/数据能力 + 本地 6551 Twitter/X 热点抓取能力。
+- 内容必须覆盖：大盘行情、今日热点、meme 板块、聪明钱/资金流、风险提示。
+- 禁止模仿用户口头语气；禁止使用“2026一路腾飞”等口号式、重复性表达；禁止空话、鸡汤、喊单。
+- 文风要求：中文、专业、简洁、信息密度高，按“市场总览 / 热点 / meme观察 / 聪明钱动向 / 风险提示”组织优先。
+
 # X/Twitter 链接处理路由
 - 用户发送 `x.com` / `twitter.com` 链接时，优先调用 `skills/x-tweet-fetcher/`。
 - 适用场景：单条推文、长推、X Articles（长文）、账号时间线、回复楼抓取。
