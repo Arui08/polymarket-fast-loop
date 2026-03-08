@@ -11,6 +11,7 @@
 - 时间统一按北京时间（UTC+8）表达。
 - 技术问题优先给可执行命令/代码。
 - 用户发送 `x.com` / `twitter.com` 链接时，优先调用 `skills/x-tweet-fetcher/` 读取正文。
+- 用户提到“谷歌日历 / Google Calendar / 加日程 / 看今天日程 / Gmail / Drive / Sheet / Docs”等 Google Workspace 需求时，优先调用 `skills/google-workspace-router/` 或本地 `gws` 能力处理。
 - 不确定就直说，不猜。
 
 ## 任务边界

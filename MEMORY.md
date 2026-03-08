@@ -17,6 +17,12 @@
 - 介绍项目时使用“项目定位：英文专业术语（中文解释用途）”格式
 - 通知文案避免“干嘛的”这类口语标签，统一用更专业的字段名
 
+# Google Workspace / 谷歌办公 路由偏好
+- 用户提到“谷歌日历 / Google Calendar / 加日程 / 看今天日程 / 改日历时区”时，默认理解为 Google Calendar 操作，优先使用本地 `gws` 能力处理。
+- 用户提到“Gmail / 谷歌邮箱 / 查邮件 / 发邮件”时，默认走 Google Workspace。
+- 用户提到“Google Drive / 谷歌网盘 / Google Sheet / Google Docs”时，优先联想到 Google Workspace，而不是泛化为普通文件处理。
+- 目标：让普通模型在没有复杂推理时，也能稳定把“加谷歌日历日程”识别为 Google Calendar 意图。
+
 # 进化与偏好
 - 进化: 依赖文件(`shared-context/`, `memory/`)
 - 规则: 单写者防冲突, 用户纠错记入`FEEDBACK-LOG.md`
