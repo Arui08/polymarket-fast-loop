@@ -23,6 +23,9 @@
 - 用户提到“Google Drive / 谷歌网盘 / Google Sheet / Google Docs”时，优先联想到 Google Workspace，而不是泛化为普通文件处理。
 - 目标：让普通模型在没有复杂推理时，也能稳定把“加谷歌日历日程”识别为 Google Calendar 意图。
 
+# 浏览器控制偏好（永久）
+- 任何需要浏览器的任务，默认强制使用 PinchTab（pinchtab-agent / pt_*）。仅在 PinchTab 不适配（Shadow DOM/复杂组件）时回退 OpenClaw browser 工具。
+
 # 进化与偏好
 - 进化: 依赖文件(`shared-context/`, `memory/`)
 - 规则: 单写者防冲突, 用户纠错记入`FEEDBACK-LOG.md`
