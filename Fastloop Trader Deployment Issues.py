@@ -486,11 +486,54 @@ def get_binance_momentum(symbol="BTCUSDT", lookback_minutes=5):
 COINGECKO_ASSETS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana"}
 
 
+def get_coinbase_momentum(symbol="BTC-USD", lookback_minutes=5):
+    """Get price momentum from Coinbase public API (fallback for regions where Binance is blocked)."""
+    import time as _time
+    end = int(_time.time())
+    start = end - lookback_minutes * 60
+    url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity=60&start={start}&end={end}"
+    result = _api_request(url)
+    if not result or not isinstance(result, list) or len(result) < 2:
+        return None
+    try:
+        # Coinbase format: [timestamp, low, high, open, close, volume]
+        candles = sorted(result, key=lambda c: c[0])
+        price_then = float(candles[0][3])   # open of oldest
+        price_now = float(candles[-1][4])    # close of newest
+        momentum_pct = ((price_now - price_then) / price_then) * 100
+        direction = "up" if momentum_pct > 0 else "down"
+        volumes = [float(c[5]) for c in candles]
+        avg_volume = sum(volumes) / len(volumes)
+        latest_volume = volumes[-1]
+        volume_ratio = latest_volume / avg_volume if avg_volume > 0 else 1.0
+        return {
+            "momentum_pct": momentum_pct,
+            "direction": direction,
+            "price_now": price_now,
+            "price_then": price_then,
+            "avg_volume": avg_volume,
+            "latest_volume": latest_volume,
+            "volume_ratio": volume_ratio,
+            "candles": len(candles),
+        }
+    except (IndexError, ValueError, KeyError):
+        return None
+
+
 def get_momentum(asset="BTC", source="binance", lookback=5):
     """Get price momentum from configured source."""
     if source == "binance":
         symbol = ASSET_SYMBOLS.get(asset, "BTCUSDT")
-        return get_binance_momentum(symbol, lookback)
+        result = get_binance_momentum(symbol, lookback)
+        if result is None:
+            # Fallback to Coinbase if Binance is unreachable
+            print("  ⚠️  Binance unreachable, trying Coinbase...")
+            cb_symbol = asset + "-USD"
+            result = get_coinbase_momentum(cb_symbol, lookback)
+        return result
+    elif source == "coinbase":
+        cb_symbol = asset + "-USD"
+        return get_coinbase_momentum(cb_symbol, lookback)
     elif source == "coingecko":
         print("  ⚠️  CoinGecko free tier doesn't provide candle data — switch to binance")
         print("  Run: python fastloop_trader.py --set signal_source=binance")
