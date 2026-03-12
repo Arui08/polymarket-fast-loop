@@ -57,7 +57,7 @@ CONFIG_SCHEMA = {
     "lookback_minutes": {"default": 5, "env": "SIMMER_SPRINT_LOOKBACK", "type": int,
                          "help": "Minutes of price history for momentum calc"},
     "min_time_remaining": {"default": 0, "env": "SIMMER_SPRINT_MIN_TIME", "type": int,
-                           "help": "Skip fast_markets with less than this many seconds remaining (0 = auto: 10%% of window)"},
+                           "help": "Skip fast_markets with less than this many seconds remaining (0 = auto: 10% of window)"},
     "asset": {"default": "BTC", "env": "SIMMER_SPRINT_ASSET", "type": str,
               "help": "Asset to trade (BTC, ETH, SOL)"},
     "window": {"default": "5m", "env": "SIMMER_SPRINT_WINDOW", "type": str,
@@ -485,6 +485,7 @@ def get_binance_momentum(symbol="BTCUSDT", lookback_minutes=5):
 
 COINGECKO_ASSETS = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana"}
 
+
 def get_momentum(asset="BTC", source="binance", lookback=5):
     """Get price momentum from configured source."""
     if source == "binance":
@@ -741,10 +742,119 @@ def run_fast_market_strategy(dry_run=True, positions_only=False, show_config=Fal
         # Effective fee at current market price using Polymarket crypto formula
         _p = market_yes_price if market_yes_price <= 0.5 else (1 - market_yes_price)
         _eff = POLY_FEE_RATE * (_p * (1 - _p)) ** POLY_FEE_EXPONENT
-        fee_per_share = _p * _eff # absolute fee in price terms
+        log(f"  Fee rate:         {_eff:.2%} effective at current price (feeRateBps={fee_rate_bps})")
+
+    # Step 3: Get CEX price momentum
+    log(f"\n📈 Fetching {ASSET} price signal ({SIGNAL_SOURCE})...")
+    momentum = get_momentum(ASSET, SIGNAL_SOURCE, LOOKBACK_MINUTES)
+
+    if not momentum:
+        log("  ❌ Failed to fetch price data", force=True)
+        return
+
+    log(f"  Price: ${momentum['price_now']:,.2f} (was ${momentum['price_then']:,.2f})")
+    log(f"  Momentum: {momentum['momentum_pct']:+.3f}%")
+    log(f"  Direction: {momentum['direction']}")
+    if VOLUME_CONFIDENCE:
+        log(f"  Volume ratio: {momentum['volume_ratio']:.2f}x avg")
+
+    # Step 4: Decision logic
+    log(f"\n🧠 Analyzing...")
+
+    momentum_pct = abs(momentum["momentum_pct"])
+    direction = momentum["direction"]
+    skip_reasons = []
+
+    def _emit_skip_report(signals=1, attempted=0):
+        """Emit automaton JSON with skip_reason before early return."""
+        global _automaton_reported
+        if os.environ.get("AUTOMATON_MANAGED") and skip_reasons:
+            report = {"signals": signals, "trades_attempted": attempted, "trades_executed": 0,
+                      "skip_reason": ", ".join(dict.fromkeys(skip_reasons))}
+            print(json.dumps({"automaton": report}))
+            _automaton_reported = True
+
+    # Check order book spread and depth
+    # Use pre-fetched spread from Simmer API if available, otherwise fetch from CLOB
+    pre_spread = best.get("spread_cents")
+    if pre_spread is not None:
+        # spread_cents is raw cents (e.g. 2.5 = 2.5¢). Convert to fraction of midpoint
+        # for comparison with MAX_SPREAD_PCT. Fast markets trade near 50¢ midpoint.
+        mid_estimate = market_yes_price if market_yes_price > 0 else 0.5
+        spread_pct = (pre_spread / 100.0) / mid_estimate
+        log(f"  Spread: {pre_spread:.1f}¢ ({best.get('liquidity_tier', 'unknown')})")
+        if spread_pct > MAX_SPREAD_PCT:
+            log(f"  ⏸️  Spread {spread_pct:.1%} > 10% — illiquid, skip")
+            if not quiet:
+                print(f"📊 Summary: No trade (wide spread: {spread_pct:.1%})")
+            skip_reasons.append("wide spread")
+            _emit_skip_report()
+            return
+    else:
+        book = fetch_orderbook_summary(clob_tokens) if clob_tokens else None
+        if book:
+            log(f"  Spread: {book['spread_pct']:.1%} (bid ${book['best_bid']:.3f} / ask ${book['best_ask']:.3f})")
+            log(f"  Depth: ${book['bid_depth_usd']:.0f} bid / ${book['ask_depth_usd']:.0f} ask (top 5)")
+            if book["spread_pct"] > MAX_SPREAD_PCT:
+                log(f"  ⏸️  Spread {book['spread_pct']:.1%} > 10% — illiquid, skip")
+                if not quiet:
+                    print(f"📊 Summary: No trade (wide spread: {book['spread_pct']:.1%})")
+                skip_reasons.append("wide spread")
+                _emit_skip_report()
+                return
+
+    # Check minimum momentum
+    if momentum_pct < MIN_MOMENTUM_PCT:
+        log(f"  ⏸️  Momentum {momentum_pct:.3f}% < minimum {MIN_MOMENTUM_PCT}% — skip")
+        if not quiet:
+            print(f"📊 Summary: No trade (momentum too weak: {momentum_pct:.3f}%)")
+        return
+
+    # Calculate expected fair price based on momentum direction
+    # Simple model: strong momentum → higher probability of continuation
+    if direction == "up":
+        side = "yes"
+        divergence = 0.50 + ENTRY_THRESHOLD - market_yes_price
+        trade_rationale = f"{ASSET} up {momentum['momentum_pct']:+.3f}% but YES only ${market_yes_price:.3f}"
+    else:
+        side = "no"
+        divergence = market_yes_price - (0.50 - ENTRY_THRESHOLD)
+        trade_rationale = f"{ASSET} down {momentum['momentum_pct']:+.3f}% but YES still ${market_yes_price:.3f}"
+
+    # Volume confidence adjustment
+    vol_note = ""
+    if VOLUME_CONFIDENCE and momentum["volume_ratio"] < 0.5:
+        log(f"  ⏸️  Low volume ({momentum['volume_ratio']:.2f}x avg) — weak signal, skip")
+        if not quiet:
+            print(f"📊 Summary: No trade (low volume)")
+        skip_reasons.append("low volume")
+        _emit_skip_report()
+        return
+    elif VOLUME_CONFIDENCE and momentum["volume_ratio"] > 2.0:
+        vol_note = f" 📊 (high volume: {momentum['volume_ratio']:.1f}x avg)"
+
+    # Check divergence threshold
+    if divergence <= 0:
+        log(f"  ⏸️  Market already priced in: divergence {divergence:.3f} ≤ 0 — skip")
+        if not quiet:
+            print(f"📊 Summary: No trade (market already priced in)")
+        skip_reasons.append("market already priced in")
+        _emit_skip_report()
+        return
+
+    # Fee-aware EV check: require enough divergence to cover fees
+    # EV = win_prob * payout_after_fees - (1 - win_prob) * cost
+    # At the buy price, win_prob ≈ buy_price (market-implied).
+    # We need our edge (divergence) to overcome the fee drag.
+    if fee_rate_bps > 0:
+        buy_price = market_yes_price if side == "yes" else (1 - market_yes_price)
+        # Polymarket crypto fee: fee = C × p × 0.25 × (p × (1-p))^2
+        # Effective rate = 0.25 × (p × (1-p))^2. Fee per share = buy_price × eff_rate.
+        effective_fee_rate = POLY_FEE_RATE * (buy_price * (1 - buy_price)) ** POLY_FEE_EXPONENT
+        fee_per_share = buy_price * effective_fee_rate  # absolute fee in price terms
         # Divergence is in absolute price — compare to fee drag + buffer
-        min_divergence = fee_per_share * 2 + 0.02 # round-trip fee + buffer
-        log(f"  Fee:              ${fee_per_share:.4f}/share ({_eff:.2%} effective, min divergence {min_divergence:.3f})")
+        min_divergence = fee_per_share * 2 + 0.02  # round-trip fee + buffer
+        log(f"  Fee:              ${fee_per_share:.4f}/share ({effective_fee_rate:.2%} effective, min divergence {min_divergence:.3f})")
         if divergence < min_divergence:
             log(f"  ⏸️  Divergence {divergence:.3f} < fee-adjusted minimum {min_divergence:.3f} — skip")
             if not quiet:
@@ -845,8 +955,7 @@ def run_fast_market_strategy(dry_run=True, positions_only=False, show_config=Fal
         print(f"  Action: {'PAPER' if dry_run else ('TRADED' if total_trades else 'FAILED')}")
 
     # Structured report for automaton (takes priority over fallback in __main__)
-    if os.environ.get("AUTOMATON_MANAGED"):
-        global _automaton_reported
+    if os.environ.get("AUTOMATON_MANAGED"):\n        global _automaton_reported
         amount = round(position_size, 2) if total_trades > 0 else 0
         report = {"signals": 1, "trades_attempted": 1, "trades_executed": total_trades, "amount_usd": amount}
         if execution_error:
@@ -893,8 +1002,7 @@ if __name__ == "__main__":
                 print(f"Unknown config key: {key}")
                 print(f"Valid keys: {', '.join(CONFIG_SCHEMA.keys())}")
                 sys.exit(1)
-        result = update_config(updates, __file__)
-        print(f"✅ Config updated: {json.dumps(updates)}")
+        result = update_config(updates, __file__)\n        print(f"✅ Config updated: {json.dumps(updates)}")
         sys.exit(0)
 
     dry_run = not args.live
