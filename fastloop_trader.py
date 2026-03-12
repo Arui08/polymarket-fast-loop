@@ -57,7 +57,7 @@ CONFIG_SCHEMA = {
     "lookback_minutes": {"default": 5, "env": "SIMMER_SPRINT_LOOKBACK", "type": int,
                          "help": "Minutes of price history for momentum calc"},
     "min_time_remaining": {"default": 0, "env": "SIMMER_SPRINT_MIN_TIME", "type": int,
-                           "help": "Skip fast_markets with less than this many seconds remaining (0 = auto: 10% of window)"},
+                           "help": "Skip fast_markets with less than this many seconds remaining (0 = auto: 10%% of window)"},
     "asset": {"default": "BTC", "env": "SIMMER_SPRINT_ASSET", "type": str,
               "help": "Asset to trade (BTC, ETH, SOL)"},
     "window": {"default": "5m", "env": "SIMMER_SPRINT_WINDOW", "type": str,
@@ -955,7 +955,7 @@ def run_fast_market_strategy(dry_run=True, positions_only=False, show_config=Fal
         print(f"  Action: {'PAPER' if dry_run else ('TRADED' if total_trades else 'FAILED')}")
 
     # Structured report for automaton (takes priority over fallback in __main__)
-    if os.environ.get("AUTOMATON_MANAGED"):      
+    if os.environ.get("AUTOMATON_MANAGED"):
         global _automaton_reported
         amount = round(position_size, 2) if total_trades > 0 else 0
         report = {"signals": 1, "trades_attempted": 1, "trades_executed": total_trades, "amount_usd": amount}
@@ -1003,7 +1003,8 @@ if __name__ == "__main__":
                 print(f"Unknown config key: {key}")
                 print(f"Valid keys: {', '.join(CONFIG_SCHEMA.keys())}")
                 sys.exit(1)
-        result = update_config(updates, __file__)\n        print(f"✅ Config updated: {json.dumps(updates)}")
+        result = update_config(updates, __file__)
+        print(f"✅ Config updated: {json.dumps(updates)}")
         sys.exit(0)
 
     dry_run = not args.live
