@@ -90,4 +90,86 @@ ASSET_PATTERNS = {
 }
 
 
-from simmer_sdk.skill import load_config, update_config, get_config_path
+from simmer_sdk.skill import load_config, update_config, get_config_path# Load config
+cfg = load_config(CONFIG_SCHEMA, file, slug="polymarket-fast-loop")
+ENTRY_THRESHOLD = cfg["entry_threshold"]
+MIN_MOMENTUM_PCT = cfg["min_momentum_pct"]
+MAX_POSITION_USD = cfg["max_position"]
+_automaton_max = os.environ.get("AUTOMATON_MAX_BET")
+if _automaton_max:
+ MAX_POSITION_USD = min(MAX_POSITION_USD, float(_automaton_max))
+SIGNAL_SOURCE = cfg["signal_source"]
+LOOKBACK_MINUTES = cfg["lookback_minutes"]
+ASSET = cfg["asset"].upper()
+WINDOW = cfg["window"] # "5m" or "15m"
+
+# Dynamic min_time_remaining: 0 = auto (10% of window duration)
+_window_seconds = {"5m": 300, "15m": 900, "1h": 3600}
+_configured_min_time = cfg["min_time_remaining"]
+if _configured_min_time > 0:
+ MIN_TIME_REMAINING = _configured_min_time
+else:
+ MIN_TIME_REMAINING = max(30, _window_seconds.get(WINDOW, 300) // 10)
+VOLUME_CONFIDENCE = cfg["volume_confidence"]
+DAILY_BUDGET = cfg["daily_budget"]
+
+# Polymarket crypto fee formula constants (from docs.polymarket.com/trading/fees)
+# fee = C × p × POLY_FEE_RATE × (p × (1-p))^POLY_FEE_EXPONENT
+POLY_FEE_RATE = 0.25 # Crypto markets
+POLY_FEE_EXPONENT = 2 # Crypto markets
+
+
+# =============================================================================
+# Daily Budget Tracking
+# =============================================================================
+
+def _get_spend_path(skill_file):
+ from pathlib import Path
+ return Path(skill_file).parent / "daily_spend.json"
+
+
+def _load_daily_spend(skill_file):
+ """Load today's spend. Resets if date != today (UTC)."""
+ spend_path = _get_spend_path(skill_file)
+ today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+ if spend_path.exists():
+ try:
+ with open(spend_path) as f:
+ data = json.load(f)
+ if data.get("date") == today:
+ return data
+ except (json.JSONDecodeError, IOError):
+ pass
+ return {"date": today, "spent": 0.0, "trades": 0}
+
+
+def _save_daily_spend(skill_file, spend_data):
+ """Save daily spend to file."""
+ spend_path = _get_spend_path(skill_file)
+ with open(spend_path, "w") as f:
+ json.dump(spend_data, f, indent=2)
+
+
+# =============================================================================
+# API Helpers
+# =============================================================================
+
+_client = None
+
+def get_client(live=True):
+ """Lazy-init SimmerClient singleton."""
+ global _client
+ if _client is None:
+ try:
+ from simmer_sdk import SimmerClient
+ except ImportError:
+ print("Error: simmer-sdk not installed. Run: pip install simmer-sdk")
+ sys.exit(1)
+ api_key = os.environ.get("SIMMER_API_KEY")
+ if not api_key:
+ print("Error: SIMMER_API_KEY environment variable not set")
+ print("Get your API key from: simmer.markets/dashboard → SDK tab")
+ sys.exit(1)
+ venue = os.environ.get("TRADING_VENUE", "polymarket")
+ _client = SimmerClient(api_key=api_key, venue=venue, live=live)
+ return _client
